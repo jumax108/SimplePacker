@@ -27,7 +27,6 @@
 *.lib
 
 # Executables
-*.exe
 *.out
 *.app
 
@@ -39,13 +38,13 @@ SimplePacker/filelist.txt
 SimplePacker/output
 
 *.exe.recipe
-SimplePacker/Release/SimplePacker.tlog
+SimplePacker/Release/SimplePacker.tlog/
 
-*.iobj
-*.ipdb
+SimplePacker/Release/*.iobj
+SimplePacker/Release/*.ipdb
 *.log
 *.obj
-*.pdb
+SimplePacker/Release/*.pdb
 SimplePacker/Release/SimplePacker.vcxproj.FileListAbsolute.txt
 
 SimplePacker/x64/
