@@ -32,9 +32,9 @@
 *.app
 
 
-SimplePacker/.vs
-SimplePacker/data
-SimplePacker/Debug
+SimplePacker/.vs/
+SimplePacker/data/
+SimplePacker/Debug/
 SimplePacker/filelist.txt
 SimplePacker/output
 
