@@ -47,3 +47,5 @@ SimplePacker/Release/SimplePacker.tlog
 *.obj
 *.pdb
 SimplePacker/Release/SimplePacker.vcxproj.FileListAbsolute.txt
+
+SimplePacker/x64/
