@@ -1,181 +1,244 @@
-﻿#include <iostream>
-#include <vector>
-using namespace std;
+﻿// SimplePacker.cpp : 애플리케이션에 대한 진입점을 정의합니다.
+//
 
-#pragma pack(1)
-struct SFileHeader {
-	char name[256];
-	unsigned int size;
-};
-#pragma pack()
+#include "framework.h"
+#include "SimplePacker.h"
 
-void packing() {
-	FILE* fpFileList = nullptr;
-	vector<char*> fileList;
-	char* buffer = nullptr;
+#define MAX_LOADSTRING 100
 
-	fopen_s(&fpFileList, "filelist.txt", "rb");
-	if (fpFileList == nullptr) {
-		cout << "Cannot open filelist.txt";
-		return ;
-	}
-	fseek(fpFileList, 0, SEEK_END);
-	int size = ftell(fpFileList);
-	rewind(fpFileList);
+// 전역 변수:
+HINSTANCE hInst;                                // 현재 인스턴스입니다.
+WCHAR szTitle[MAX_LOADSTRING];                  // 제목 표시줄 텍스트입니다.
+WCHAR szWindowClass[MAX_LOADSTRING];            // 기본 창 클래스 이름입니다.
 
-	buffer = (char*)malloc(size + 1);
-	if (buffer == nullptr) {
-		cout << "Malloc Error";
-		return;
-	}
-	fread(buffer, 1, size, fpFileList);
-	fclose(fpFileList);
-	buffer[size] = '\0';
+// 이 코드 모듈에 포함된 함수의 선언을 전달합니다:
+ATOM                MyRegisterClass(HINSTANCE hInstance);
+BOOL                InitInstance(HINSTANCE, int);
+LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+HWND addButton(HWND hWnd, HINSTANCE hInstance, LPTSTR, int, int);
+void addListBox(HWND hWnd, HINSTANCE hInstance);
 
-	int fileNum = 0;
-	char* fileNameBegin = &buffer[0];
-	for (int bufCnt = 0; bufCnt <= size; ++bufCnt) {
-		switch (buffer[bufCnt]) {
-		case '\0':
-		case 0x0D:
 
-			if (&buffer[bufCnt] - fileNameBegin == 0) {
-				break;
-			}
 
-			fileList.push_back((char*)malloc(256));
-			if (fileList[fileNum] == nullptr) {
-				cout << "Malloc Error";
-				return;
-			}
 
-			for (char* pBuf = fileNameBegin; pBuf != &buffer[bufCnt]; ++pBuf) {
-				fileList[fileNum][pBuf - fileNameBegin] = *pBuf;
-			}
-			fileNum += 1;
-			fileNameBegin = &buffer[bufCnt + 2];
-			break;
-		}
-	}
-	free(buffer);
-	
-	char** fileData = (char**)malloc(fileNum);
-	SFileHeader* fileHeader = (SFileHeader*)malloc(sizeof(SFileHeader) * fileNum);
-	if (fileHeader == nullptr) {
-		cout << "Malloc Error";
-		return;
-	}
+HWND hWnd;
 
-	for (int fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
-		FILE* fpFile = nullptr;
-		int size = 0;
-		fopen_s(&fpFile, fileList[fileCnt], "rb");
-		if (fpFile == nullptr) {
-			cout << fileList[fileCnt] << ": Cannot open file.\n";
-			return;
-		}
-		fseek(fpFile, 0, SEEK_END);
-		size = ftell(fpFile);
-		rewind(fpFile);
+HWND hBtnAddFile;
+HWND hBtnDelFile;
+HWND hBtnPacking;
+HWND hBtnUnPacking;
 
-		fileData[fileCnt] = (char*)malloc(size);
-		if (fileData[fileCnt] == nullptr) {
-			cout << "Malloc Error";
-			return;
-		}
-		fread(fileData[fileCnt], 1, size, fpFile);
-		fclose(fpFile);
-		fileHeader[fileCnt].size = size;
-		memcpy(fileHeader[fileCnt].name, fileList[fileCnt], 255);
-	}
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+                     _In_opt_ HINSTANCE hPrevInstance,
+                     _In_ LPWSTR    lpCmdLine,
+                     _In_ int       nCmdShow)
+{
+    UNREFERENCED_PARAMETER(hPrevInstance);
+    UNREFERENCED_PARAMETER(lpCmdLine);
 
-	FILE* fileOutput = nullptr;
-	fopen_s(&fileOutput, "output", "wb");
-	if (fileOutput == nullptr) {
-		cout << "Cannot make output file";
-		return;
-	}
+    // TODO: 여기에 코드를 입력합니다.
 
-	fwrite(&fileNum, sizeof(fileNum), 1, fileOutput);
-	
-	fwrite(fileHeader, sizeof(SFileHeader), fileNum, fileOutput);
-	
-	for (int fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
-		fwrite(fileData[fileCnt], fileHeader[fileCnt].size, 1, fileOutput);
-	}
+    // 전역 문자열을 초기화합니다.
+    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDC_SIMPLEPACKER, szWindowClass, MAX_LOADSTRING);
+    MyRegisterClass(hInstance);
 
-	fclose(fileOutput);
+    // 애플리케이션 초기화를 수행합니다:
+    if (!InitInstance (hInstance, nCmdShow))
+    {
+        return FALSE;
+    }
 
-	free(fileHeader);
-	for (int fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
-		free(fileList[fileCnt]);
-		free(fileData[fileCnt]);
-	}
-	free(fileData);
+    addListBox(hWnd, hInstance);
+    hBtnAddFile = addButton(hWnd, hInstance, (LPTSTR)L"추 가", 10, 10);
+    hBtnDelFile = addButton(hWnd, hInstance, (LPTSTR)L"제 거", 10, 120);
+    hBtnDelFile = addButton(hWnd, hInstance, (LPTSTR)L"패킹 풀기 (언패킹)", 10, 615);
+    hBtnPacking = addButton(hWnd, hInstance, (LPTSTR)L"패킹", 10, 725);
+
+    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SIMPLEPACKER));
+
+    MSG msg;
+
+    // 기본 메시지 루프입니다:
+    while (GetMessage(&msg, nullptr, 0, 0))
+    {
+        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+    }
+
+    return (int) msg.wParam;
 }
 
-void unpacking() {
-	FILE* packedFile = nullptr;
-	fopen_s(&packedFile, "output", "rb");
-	if (packedFile == nullptr) {
-		return;
-	}
-
-	int fileNum = 0;
-	fread(&fileNum, sizeof(fileNum), 1, packedFile);
-	SFileHeader* fileHeader = nullptr;
-	char** fileData = nullptr;
-
-	fileHeader = (SFileHeader*)malloc(sizeof(SFileHeader) * fileNum);
-	if (fileHeader == nullptr) {
-		cout << "Malloc Error";
-		return;
-	}
-
-	fread(fileHeader, sizeof(SFileHeader), fileNum, packedFile);
-
-	fileData = (char**)malloc(fileNum);
-	if (fileData == nullptr) {
-		cout << "malloc fail";
-		return;
-	}
-
-	for (int fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
-		fileData[fileCnt] = (char*)malloc(fileHeader[fileCnt].size);
-		if (fileData[fileCnt] == nullptr) {
-			cout << "Malloc Error";
-			return;
-		}
-		fread(fileData[fileCnt], fileHeader[fileCnt].size, 1, packedFile);
-		FILE* makeFile = nullptr;
-		char fileName[257] = {0,};
-		memcpy(fileName, fileHeader[fileCnt].name, 255);
-		fopen_s(&makeFile, fileName, "wb");
-		if (makeFile == nullptr) {
-			cout << fileHeader[fileCnt].name << ": 파일을 열 수 없습니다.";
-			break;
-		}
-		fwrite(fileData[fileCnt], fileHeader[fileCnt].size, 1, makeFile);
-		fclose(makeFile);
-	}
-
-	fclose(packedFile);
+HWND hListBox;
+void addListBox(HWND hWnd, HINSTANCE hInstance) {
+    hListBox = CreateWindowExW(WS_EX_ACCEPTFILES, WC_LISTBOX, szTitle, WS_VSCROLL | WS_HSCROLL | WS_BORDER | LBS_COMBOBOX | LBS_HASSTRINGS | WS_CHILD, 300, 10, 1270, 830, hWnd, nullptr, hInstance, nullptr);
+    ShowWindow(hListBox, true);
 }
 
-int main() {
+HWND addButton(HWND hWnd, HINSTANCE hInstance, LPTSTR caption, int x, int y) {
+    HWND handle;
 
-	int select;
-	cout << "1. Pack\n2. Unpack\n";
-	cin >> select;
+    handle = CreateWindowExW(0L, WC_BUTTONW, nullptr, BS_CENTER | WS_CHILD, x, y, 280, 100, hWnd, nullptr, hInstance, nullptr);
+    Button_SetText(handle, caption);
+    ShowWindow(handle, true);
 
-	switch (select) {
-	case 1:
-		packing();
-		break;
-	case 2:
-		unpacking();
-		break;
-	}
-
-	return 0;
+    return handle;
 }
+
+//
+//  함수: MyRegisterClass()
+//
+//  용도: 창 클래스를 등록합니다.
+//
+ATOM MyRegisterClass(HINSTANCE hInstance)
+{
+    WNDCLASSEXW wcex;
+
+    wcex.cbSize = sizeof(WNDCLASSEX);
+
+    wcex.style          = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc    = WndProc;
+    wcex.cbClsExtra     = 0;
+    wcex.cbWndExtra     = 0;
+    wcex.hInstance      = hInstance;
+    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SIMPLEPACKER));
+    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW);
+    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_SIMPLEPACKER);
+    wcex.lpszClassName  = szWindowClass;
+    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+
+    return RegisterClassExW(&wcex);
+}
+
+//
+//   함수: InitInstance(HINSTANCE, int)
+//
+//   용도: 인스턴스 핸들을 저장하고 주 창을 만듭니다.
+//
+//   주석:
+//
+//        이 함수를 통해 인스턴스 핸들을 전역 변수에 저장하고
+//        주 프로그램 창을 만든 다음 표시합니다.
+//
+BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+{
+   hInst = hInstance; // 인스턴스 핸들을 전역 변수에 저장합니다.
+   hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW ,
+      0, 0, 1600, 900, nullptr, nullptr, hInstance, nullptr);
+
+   if (!hWnd)
+   {
+      return FALSE;
+   }
+
+   ShowWindow(hWnd, nCmdShow);
+   UpdateWindow(hWnd);
+
+   return TRUE;
+}
+
+//
+//  함수: WndProc(HWND, UINT, WPARAM, LPARAM)
+//
+//  용도: 주 창의 메시지를 처리합니다.
+//
+//  WM_COMMAND  - 애플리케이션 메뉴를 처리합니다.
+//  WM_PAINT    - 주 창을 그립니다.
+//  WM_DESTROY  - 종료 메시지를 게시하고 반환합니다.
+//
+//
+
+
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_CREATE:
+        break;
+    case WM_COMMAND:
+        {
+            int wmId = LOWORD(wParam);
+            // 메뉴 선택을 구문 분석합니다:
+            switch (wmId)
+            {
+            case IDM_ABOUT:
+                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+                return 0;
+            case IDM_EXIT:
+                DestroyWindow(hWnd);
+                return 0;
+            }
+
+            // 버튼 선택
+            if (lParam == (LPARAM)hBtnAddFile) {
+                IFileOpenDialog* pFileOpen;
+                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+                CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void**)&pFileOpen);
+                pFileOpen->Show(NULL);
+                IShellItem* pItem; 
+                if (SUCCEEDED(pFileOpen->GetResult(&pItem))) {
+                    LPWSTR fileName;
+                    pItem->GetDisplayName(SIGDN_FILESYSPATH, &fileName);
+                    //MessageBoxW(NULL, fileName, L"File Path", MB_OK);
+                    SendMessageW(hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
+                    CoTaskMemFree(fileName);
+                    pItem->Release();
+                    pFileOpen->Release();
+                    CoUninitialize();
+                }
+
+            }
+
+            return DefWindowProc(hWnd, message, wParam, lParam);
+        }
+        break;
+    case WM_PAINT:
+        {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            // TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
+            EndPaint(hWnd, &ps);
+        }
+        break;
+    case WM_DROPFILES:
+        WCHAR fileName[255];
+        DragQueryFileW((HDROP)wParam, 0, fileName, 255);
+        //MessageBoxW(hWnd, fileName, fileName, MB_OK);
+        DragFinish((HDROP)wParam);
+        SendMessageW(hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
+        break;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+    default:
+        return DefWindowProc(hWnd, message, wParam, lParam);
+    }
+    return 0;
+}
+
+// 정보 대화 상자의 메시지 처리기입니다.
+INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message)
+    {
+    case WM_INITDIALOG:
+        return (INT_PTR)TRUE;
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
+    }
+    return (INT_PTR)FALSE;
+}
+
