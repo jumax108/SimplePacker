@@ -206,12 +206,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             EndPaint(hWnd, &ps);
         }
         break;
-    case WM_DROPFILES:
-        WCHAR fileName[255];
-        DragQueryFileW((HDROP)wParam, 0, fileName, 255);
-        //MessageBoxW(hWnd, fileName, fileName, MB_OK);
-        DragFinish((HDROP)wParam);
-        SendMessageW(hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
+    case WM_DROPFILES: 
+        {
+            WCHAR fileName[255];
+            DragQueryFileW((HDROP)wParam, 0, fileName, 255);
+            //MessageBoxW(hWnd, fileName, fileName, MB_OK);
+            DragFinish((HDROP)wParam);
+            SendMessageW(hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
+        }
         break;
     case WM_DESTROY:
         PostQuitMessage(0);
