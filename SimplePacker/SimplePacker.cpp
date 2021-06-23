@@ -3,6 +3,7 @@
 
 #include "framework.h"
 #include "SimplePacker.h"
+#include "SimplePackerLib.h"
 
 #define MAX_LOADSTRING 100
 
@@ -28,6 +29,8 @@ HWND hBtnAddFile;
 HWND hBtnDelFile;
 HWND hBtnPacking;
 HWND hBtnUnPacking;
+
+int fileNum = 0;
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -176,6 +179,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
 
             // 버튼 선택
+
             if (lParam == (LPARAM)hBtnAddFile) {
                 IFileOpenDialog* pFileOpen;
                 CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
@@ -185,14 +189,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 if (SUCCEEDED(pFileOpen->GetResult(&pItem))) {
                     LPWSTR fileName;
                     pItem->GetDisplayName(SIGDN_FILESYSPATH, &fileName);
-                    //MessageBoxW(NULL, fileName, L"File Path", MB_OK);
                     SendMessageW(hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
                     CoTaskMemFree(fileName);
                     pItem->Release();
                     pFileOpen->Release();
                     CoUninitialize();
+                    fileNum += 1;
                 }
 
+            }
+            else if (lParam == (LPARAM)hBtnPacking) {
+
+                stFile* files = (stFile*)malloc(sizeof(stFile) * fileNum);
+
+                for (int fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
+                    LPWSTR fileName = new WCHAR[255];
+                    int length = SendMessageW(hListBox, LB_GETTEXT, fileCnt, (LPARAM)fileName);
+                    FILE* file;
+                    _wfopen_s(&file, fileName, L"rb");
+                    files[fileCnt].header.name = fileName;
+                    files[fileCnt].header.nameLen = wcslen(fileName);
+                    fseek(file, 0, SEEK_END);
+                    DWORD size = ftell(file);
+                    files[fileCnt].header.size = size;
+                    rewind(file);
+                    BYTE* data = (BYTE*)malloc(sizeof(BYTE) * size);
+                    fread(data, sizeof(BYTE), size, file);
+                    files[fileCnt].data = data;
+
+                }
+
+                packing(files, fileNum, (WCHAR*)L"packed.sp");
             }
 
             return DefWindowProc(hWnd, message, wParam, lParam);
@@ -210,9 +237,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             WCHAR fileName[255];
             DragQueryFileW((HDROP)wParam, 0, fileName, 255);
-            //MessageBoxW(hWnd, fileName, fileName, MB_OK);
             DragFinish((HDROP)wParam);
             SendMessageW(hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
+            fileNum += 1;
         }
         break;
     case WM_DESTROY:
