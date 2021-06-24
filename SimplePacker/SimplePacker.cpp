@@ -56,8 +56,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     addListBox(hWnd, hInstance);
     hBtnAddFile = addButton(hWnd, hInstance, (LPTSTR)L"추 가", 10, 10);
     hBtnDelFile = addButton(hWnd, hInstance, (LPTSTR)L"제 거", 10, 120);
-    hBtnDelFile = addButton(hWnd, hInstance, (LPTSTR)L"패킹 풀기 (언패킹)", 10, 615);
     hBtnPacking = addButton(hWnd, hInstance, (LPTSTR)L"패킹", 10, 725);
+    hBtnUnPacking = addButton(hWnd, hInstance, (LPTSTR)L"패킹 풀기 (언패킹)", 10, 615);
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SIMPLEPACKER));
 
@@ -78,7 +78,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 HWND hListBox;
 void addListBox(HWND hWnd, HINSTANCE hInstance) {
-    hListBox = CreateWindowExW(WS_EX_ACCEPTFILES, WC_LISTBOX, szTitle, WS_VSCROLL | WS_HSCROLL | WS_BORDER | LBS_COMBOBOX | LBS_HASSTRINGS | WS_CHILD, 300, 10, 1270, 830, hWnd, nullptr, hInstance, nullptr);
+    hListBox = CreateWindowExW(WS_EX_ACCEPTFILES, WC_LISTBOX, szTitle, WS_VSCROLL | WS_HSCROLL | WS_BORDER | LBS_EXTENDEDSEL | LBS_COMBOBOX | LBS_HASSTRINGS | WS_CHILD, 300, 10, 1270, 830, hWnd, nullptr, hInstance, nullptr);
     ShowWindow(hListBox, true);
 }
 
@@ -197,6 +197,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     fileNum += 1;
                 }
 
+            }
+            else if (lParam == (LPARAM)hBtnDelFile) {
+
+                int* idxs = (int*)malloc(sizeof(int) * fileNum);
+                int err = SendMessageW(hListBox, LB_GETSELITEMS, fileNum, (LPARAM)idxs);
+                if (err == LB_ERR) {
+                    int err = GetLastError();
+                    free(idxs);
+                    return 0;
+                }
+
+                for (int fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
+                    int idx = idxs[fileCnt];
+                    //WCHAR* fileName = new WCHAR[255];
+                    //SendMessageW(hListBox, LB_GETTEXT, idx, (LPARAM)fileName);
+                    SendMessageW(hListBox, LB_DELETESTRING, idx, NULL);
+                }
+                free(idxs);
             }
             else if (lParam == (LPARAM)hBtnPacking) {
 
