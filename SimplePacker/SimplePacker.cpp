@@ -8,155 +8,95 @@
 #define MAX_LOADSTRING 100
 
 // 전역 변수:
-HINSTANCE hInst;                                // 현재 인스턴스입니다.
-WCHAR szTitle[MAX_LOADSTRING];                  // 제목 표시줄 텍스트입니다.
-WCHAR szWindowClass[MAX_LOADSTRING];            // 기본 창 클래스 이름입니다.
+HINSTANCE _hInst;                                // 현재 인스턴스입니다.
+WCHAR _szTitle[MAX_LOADSTRING];                  // 제목 표시줄 텍스트입니다.
+WCHAR _szWindowClass[MAX_LOADSTRING];            // 기본 창 클래스 이름입니다.
 
-// 이 코드 모듈에 포함된 함수의 선언을 전달합니다:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
-BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
-INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-HWND addButton(HWND hWnd, HINSTANCE hInstance, LPTSTR, int, int);
-void addListBox(HWND hWnd, HINSTANCE hInstance);
+HWND _hWnd;
+HWND _hListBox;
+HWND _hBtnAddFile;
+HWND _hBtnDelFile;
+HWND _hBtnPacking;
+HWND _hBtnUnPackingAll;
+HWND _hBtnUnPackingSelected;
 
+LPWSTR _fileName = nullptr;
 
+int _fileNum = 0;
 
+CLinkedList<WCHAR*> _fileFullPath;
 
-HWND hWnd;
+void setListBoxHorizontalLen(HWND hWnd) {
 
-HWND hBtnAddFile;
-HWND hBtnDelFile;
-HWND hBtnPacking;
-HWND hBtnUnPacking;
-
-int fileNum = 0;
-
-int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-                     _In_opt_ HINSTANCE hPrevInstance,
-                     _In_ LPWSTR    lpCmdLine,
-                     _In_ int       nCmdShow)
-{
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
-
-    // TODO: 여기에 코드를 입력합니다.
-
-    // 전역 문자열을 초기화합니다.
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_SIMPLEPACKER, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
-
-    // 애플리케이션 초기화를 수행합니다:
-    if (!InitInstance (hInstance, nCmdShow))
-    {
-        return FALSE;
-    }
-
-    addListBox(hWnd, hInstance);
-    hBtnAddFile = addButton(hWnd, hInstance, (LPTSTR)L"추 가", 10, 10);
-    hBtnDelFile = addButton(hWnd, hInstance, (LPTSTR)L"제 거", 10, 120);
-    hBtnPacking = addButton(hWnd, hInstance, (LPTSTR)L"패킹", 10, 725);
-    hBtnUnPacking = addButton(hWnd, hInstance, (LPTSTR)L"패킹 풀기 (언패킹)", 10, 615);
-
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SIMPLEPACKER));
-
-    MSG msg;
-
-    // 기본 메시지 루프입니다:
-    while (GetMessage(&msg, nullptr, 0, 0))
-    {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+    DWORD maxLen = 0;
+    for (int fileCnt = 0; fileCnt < _fileNum; ++fileCnt) {
+        DWORD len = (DWORD)SendMessageW(hWnd, LB_GETTEXTLEN, fileCnt, NULL);
+        if (len > maxLen) {
+            maxLen = len;
         }
     }
-
-    return (int) msg.wParam;
+    SendMessageW(hWnd, LB_SETHORIZONTALEXTENT, (WPARAM)maxLen * 11, NULL);
 }
-
-HWND hListBox;
 void addListBox(HWND hWnd, HINSTANCE hInstance) {
-    hListBox = CreateWindowExW(WS_EX_ACCEPTFILES, WC_LISTBOX, szTitle, WS_VSCROLL | WS_HSCROLL | WS_BORDER | LBS_EXTENDEDSEL | LBS_COMBOBOX | LBS_HASSTRINGS | WS_CHILD, 300, 10, 1270, 830, hWnd, nullptr, hInstance, nullptr);
-    ShowWindow(hListBox, true);
+    _hListBox = CreateWindowExW(WS_EX_ACCEPTFILES, WC_LISTBOX, _szTitle, WS_VSCROLL | WS_HSCROLL | WS_BORDER | LBS_DISABLENOSCROLL | LBS_EXTENDEDSEL | LBS_HASSTRINGS | WS_CHILD, 180, 10, 430, 415, hWnd, nullptr, hInstance, nullptr);
+    ShowWindow(_hListBox, true);
 }
-
 HWND addButton(HWND hWnd, HINSTANCE hInstance, LPTSTR caption, int x, int y) {
     HWND handle;
 
-    handle = CreateWindowExW(0L, WC_BUTTONW, nullptr, BS_CENTER | WS_CHILD, x, y, 280, 100, hWnd, nullptr, hInstance, nullptr);
+    handle = CreateWindowExW(0L, WC_BUTTONW, nullptr, BS_CENTER | WS_CHILD, x, y, 150, 30, hWnd, nullptr, hInstance, nullptr);
     Button_SetText(handle, caption);
     ShowWindow(handle, true);
 
     return handle;
 }
 
-//
-//  함수: MyRegisterClass()
-//
-//  용도: 창 클래스를 등록합니다.
-//
-ATOM MyRegisterClass(HINSTANCE hInstance)
-{
-    WNDCLASSEXW wcex;
+WCHAR* getFileNameFromDirectory(WCHAR* dir) {
 
-    wcex.cbSize = sizeof(WNDCLASSEX);
+    WCHAR* lastSlash = dir;
+    DWORD dirCnt = 0;
 
-    wcex.style          = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc    = WndProc;
-    wcex.cbClsExtra     = 0;
-    wcex.cbWndExtra     = 0;
-    wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SIMPLEPACKER));
-    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-    wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_SIMPLEPACKER);
-    wcex.lpszClassName  = szWindowClass;
-    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+    for (; dir[dirCnt] != L'\0'; ++dirCnt) {
+        if ((char)dir[dirCnt] == '\\'){
+            lastSlash = dir + dirCnt;
+        }
+    }
 
-    return RegisterClassExW(&wcex);
+    DWORD len = dir + dirCnt - lastSlash - 1;
+    WCHAR* fileName = (WCHAR*)malloc(sizeof(WCHAR) * len + 1);
+    fileName[len] = L'\0';
+
+    int lenCnt = 0;
+    for (WCHAR* iter = lastSlash + 1; *iter != L'\0'; ++iter) {
+        fileName[lenCnt++] = *iter;
+    }
+
+    return fileName;
 }
 
-//
-//   함수: InitInstance(HINSTANCE, int)
-//
-//   용도: 인스턴스 핸들을 저장하고 주 창을 만듭니다.
-//
-//   주석:
-//
-//        이 함수를 통해 인스턴스 핸들을 전역 변수에 저장하고
-//        주 프로그램 창을 만든 다음 표시합니다.
-//
-BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
-{
-   hInst = hInstance; // 인스턴스 핸들을 전역 변수에 저장합니다.
-   hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW ,
-      0, 0, 1600, 900, nullptr, nullptr, hInstance, nullptr);
+WCHAR* selectFolder() {
 
-   if (!hWnd)
-   {
-      return FALSE;
-   }
+    BROWSEINFOW bi = { 0 };
 
-   ShowWindow(hWnd, nCmdShow);
-   UpdateWindow(hWnd);
+    bi.lpszTitle = L"폴더를 선택해주세요";
 
-   return TRUE;
+    LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
+
+    WCHAR* selectPath = (WCHAR*)malloc(sizeof(WCHAR) * MAX_PATH);
+    ZeroMemory(selectPath, sizeof(WCHAR) * MAX_PATH);
+
+    if (pidl != NULL)    {
+
+        SHGetPathFromIDListW(pidl, selectPath);
+
+        CoTaskMemFree(pidl);
+    }
+    else {
+        return nullptr;
+    }
+
+    return selectPath;
 }
-
-//
-//  함수: WndProc(HWND, UINT, WPARAM, LPARAM)
-//
-//  용도: 주 창의 메시지를 처리합니다.
-//
-//  WM_COMMAND  - 애플리케이션 메뉴를 처리합니다.
-//  WM_PAINT    - 주 창을 그립니다.
-//  WM_DESTROY  - 종료 메시지를 게시하고 반환합니다.
-//
-//
-
-
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -170,8 +110,32 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // 메뉴 선택을 구문 분석합니다:
             switch (wmId)
             {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+            case IDM_NEWFILE:
+                
+                _fileNum = 0;
+                return 0;
+            case IDM_SAVEFILE:
+                return 0;
+            case IDM_LOAD:
+                if (_fileName != nullptr) {
+                    CoTaskMemFree(_fileName);
+                }
+                IFileOpenDialog* pFileOpen;
+                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+                CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void**)&pFileOpen);
+                pFileOpen->Show(NULL);
+                IShellItem* pItem;
+                if (SUCCEEDED(pFileOpen->GetResult(&pItem))) {
+                    pItem->GetDisplayName(SIGDN_FILESYSPATH, &_fileName);
+                    CSimplePacker::instance()->readHeader(_fileName);
+                    for (DWORD fileCnt = 0; fileCnt < CSimplePacker::instance()->fileNum(_fileName); ++fileCnt) {
+                        SendMessageW(_hListBox, LB_ADDSTRING, NULL, (LPARAM)CSimplePacker::instance()->_headers[fileCnt].name);
+                        _fileNum += 1;
+                    }
+                    pItem->Release();
+                    pFileOpen->Release();
+                    CoUninitialize();
+                }
                 return 0;
             case IDM_EXIT:
                 DestroyWindow(hWnd);
@@ -180,56 +144,65 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             // 버튼 선택
 
-            if (lParam == (LPARAM)hBtnAddFile) {
+            if (lParam == (LPARAM)_hBtnAddFile) {
                 IFileOpenDialog* pFileOpen;
                 CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
                 CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void**)&pFileOpen);
                 pFileOpen->Show(NULL);
                 IShellItem* pItem; 
                 if (SUCCEEDED(pFileOpen->GetResult(&pItem))) {
-                    LPWSTR fileName;
-                    pItem->GetDisplayName(SIGDN_FILESYSPATH, &fileName);
-                    SendMessageW(hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
-                    CoTaskMemFree(fileName);
+                    LPWSTR fullPath;
+                    pItem->GetDisplayName(SIGDN_FILESYSPATH, &fullPath);
+                    int len = wcslen(fullPath);
+                    WCHAR* temp = (WCHAR*)malloc(sizeof(WCHAR) * len);
+                    memcpy(temp, fullPath, sizeof(WCHAR) * len);
+                    _fileFullPath.push_back(temp);
+                    LPWSTR fileName = getFileNameFromDirectory(fullPath);
+                    SendMessageW(_hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
+                    CoTaskMemFree(fullPath);
                     pItem->Release();
                     pFileOpen->Release();
                     CoUninitialize();
-                    fileNum += 1;
+                    _fileNum += 1; 
+                    setListBoxHorizontalLen(_hListBox);
                 }
-
             }
-            else if (lParam == (LPARAM)hBtnDelFile) {
+            else if (lParam == (LPARAM)_hBtnDelFile) {
 
-                int* idxs = (int*)malloc(sizeof(int) * fileNum);
-                int err = SendMessageW(hListBox, LB_GETSELITEMS, fileNum, (LPARAM)idxs);
-                if (err == LB_ERR) {
-                    int err = GetLastError();
+                int* idxs = (int*)malloc(sizeof(int) * _fileNum);
+                __int64 selNum = SendMessageW(_hListBox, LB_GETSELITEMS, _fileNum, (LPARAM)idxs);
+                if (selNum == LB_ERR) {
+                    // 아무것도 선택되지 않음
                     free(idxs);
                     return 0;
                 }
 
-                for (int fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
+                for (int fileCnt = 0; fileCnt < selNum; ++fileCnt) {
                     int idx = idxs[fileCnt];
-                    //WCHAR* fileName = new WCHAR[255];
-                    //SendMessageW(hListBox, LB_GETTEXT, idx, (LPARAM)fileName);
-                    SendMessageW(hListBox, LB_DELETESTRING, idx, NULL);
+                    CLinkedList<WCHAR*>::iterator iter = _fileFullPath.begin();
+                    for (int idxCnt = 0; idxCnt < idx; ++idxCnt, ++iter) {}
+                    _fileFullPath.erase(iter);
+                    SendMessageW(_hListBox, LB_DELETESTRING, idx, NULL);
+                    _fileNum -= 1;
                 }
                 free(idxs);
             }
-            else if (lParam == (LPARAM)hBtnPacking) {
+            else if (lParam == (LPARAM)_hBtnPacking) {
+                                
+                CSimplePacker::stFile* files = (CSimplePacker::stFile*)malloc(sizeof(CSimplePacker::stFile) * _fileNum);
 
-                stFile* files = (stFile*)malloc(sizeof(stFile) * fileNum);
-
-                for (int fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
+                int fileCnt = 0;
+                for (CLinkedList<WCHAR*>::iterator filePathIter = _fileFullPath.begin(); filePathIter != _fileFullPath.end(); ++filePathIter, ++fileCnt){
                     LPWSTR fileName = new WCHAR[255];
-                    int length = SendMessageW(hListBox, LB_GETTEXT, fileCnt, (LPARAM)fileName);
-                    FILE* file;
-                    _wfopen_s(&file, fileName, L"rb");
+                    __int64 length = SendMessageW(_hListBox, LB_GETTEXT, (WPARAM)fileCnt, (LPARAM)fileName);
+                    FILE* file = nullptr;
+                    
+                    _wfopen_s(&file, *filePathIter, L"rb");
                     files[fileCnt].header.name = fileName;
-                    files[fileCnt].header.nameLen = wcslen(fileName);
+                    files[fileCnt].header.nameLen = (DWORD)wcslen(fileName);
                     fseek(file, 0, SEEK_END);
                     DWORD size = ftell(file);
-                    files[fileCnt].header.size = size;
+                    files[fileCnt].header.fileSize = size;
                     rewind(file);
                     BYTE* data = (BYTE*)malloc(sizeof(BYTE) * size);
                     fread(data, sizeof(BYTE), size, file);
@@ -237,7 +210,74 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 }
 
-                packing(files, fileNum, (WCHAR*)L"packed.sp");
+                CSimplePacker::instance()->packing(files, _fileNum, (WCHAR*)L"packed.sp");
+                MessageBoxW(hWnd, L"패킹 완료", L"Simple Packer", MB_OK);
+            }
+            else if (lParam == (LPARAM)_hBtnUnPackingAll) {
+
+                WCHAR* selectPath = selectFolder();
+                if (selectPath == nullptr) {
+                    // 폴더 선택 취소
+                    return 0;
+                }
+
+                CSimplePacker::instance()->unpackingAll(_fileName);
+                
+                for (DWORD fileCnt = 0; fileCnt < _fileNum; fileCnt++) {
+                    
+                    FILE* saveFile;
+                    DWORD pathLen = wcslen(selectPath);
+                    DWORD fullPathLen = pathLen + CSimplePacker::instance()->_headers[fileCnt].nameLen + 1;
+                    
+                    WCHAR* fullPath = (WCHAR*)malloc(sizeof(WCHAR) * (fullPathLen + 1));
+                    fullPath[fullPathLen] = *(WCHAR*)L"\0";
+
+                    memcpy(fullPath, selectPath, sizeof(WCHAR)* pathLen);
+                    memcpy(fullPath + pathLen, L"\\", 2);
+                    memcpy(fullPath + pathLen + 1, CSimplePacker::instance()->_headers[fileCnt].name, CSimplePacker::instance()->_headers[fileCnt].nameLen * sizeof(WCHAR));
+                    
+                    _wfopen_s(&saveFile, fullPath, L"wb");
+                    fwrite(CSimplePacker::instance()->_files[fileCnt].data, CSimplePacker::instance()->_headers->fileSize, 1, saveFile);
+                    fclose(saveFile);
+                    
+                }
+
+                MessageBoxW(hWnd, L"언패킹 완료 !", L"SimplePacker", MB_OK);
+            }
+            else if (lParam == (LPARAM)_hBtnUnPackingSelected) {
+                int* idxs = (int*)malloc(sizeof(int) * _fileNum);
+                __int64 selNum = SendMessageW(_hListBox, LB_GETSELITEMS, _fileNum, (LPARAM)idxs);
+                if (selNum == LB_ERR) {
+                    // 아무것도 선택되지 않음
+                    free(idxs);
+                    return 0;
+                }
+
+                WCHAR* selectPath = selectFolder();
+                if (selectPath == nullptr) {
+                    // 폴더 선택 취소
+                    return 0;
+                }                
+
+                for (__int64 selCnt = 0; selCnt < selNum; selCnt++) {
+                    DWORD idx = idxs[selCnt];
+                    CSimplePacker::instance()->unpackingSingleFile(_fileName, idx); FILE* saveFile;
+                    DWORD pathLen = wcslen(selectPath);
+                    DWORD fullPathLen = pathLen + CSimplePacker::instance()->_headers[idx].nameLen + 1;
+
+                    WCHAR* fullPath = (WCHAR*)malloc(sizeof(WCHAR) * (fullPathLen + 1));
+                    fullPath[fullPathLen] = *(WCHAR*)L"\0";
+
+                    memcpy(fullPath, selectPath, sizeof(WCHAR)* pathLen);
+                    memcpy(fullPath + pathLen, L"\\", 2);
+                    memcpy(fullPath + pathLen + 1, CSimplePacker::instance()->_headers[idx].name, CSimplePacker::instance()->_headers[idx].nameLen * sizeof(WCHAR));
+
+                    _wfopen_s(&saveFile, fullPath, L"wb");
+                    fwrite(CSimplePacker::instance()->_files[idx].data, CSimplePacker::instance()->_headers->fileSize, 1, saveFile);
+                    fclose(saveFile);
+                }
+                MessageBoxW(hWnd, L"언패킹 완료 !", L"SimplePacker", MB_OK);
+
             }
 
             return DefWindowProc(hWnd, message, wParam, lParam);
@@ -253,14 +293,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     case WM_DROPFILES: 
         {
-            WCHAR fileName[255];
-            DragQueryFileW((HDROP)wParam, 0, fileName, 255);
+            WCHAR* fullPath = (WCHAR*)malloc(sizeof(WCHAR) * 255);
+            DragQueryFileW((HDROP)wParam, 0, fullPath, 255);
+            WCHAR* fileName = getFileNameFromDirectory(fullPath);
+            _fileFullPath.push_back(fullPath);
             DragFinish((HDROP)wParam);
-            SendMessageW(hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
-            fileNum += 1;
+            SendMessageW(_hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
+            _fileNum += 1;
+            setListBoxHorizontalLen(_hListBox);
         }
         break;
     case WM_DESTROY:
+        CoTaskMemFree(_fileName);
         PostQuitMessage(0);
         break;
     default:
@@ -269,23 +313,95 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     return 0;
 }
 
-// 정보 대화 상자의 메시지 처리기입니다.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+
+ATOM MyRegisterClass(HINSTANCE hInstance)
 {
-    UNREFERENCED_PARAMETER(lParam);
-    switch (message)
-    {
-    case WM_INITDIALOG:
-        return (INT_PTR)TRUE;
+    WNDCLASSEXW wcex;
 
-    case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-        break;
-    }
-    return (INT_PTR)FALSE;
+    wcex.cbSize = sizeof(WNDCLASSEX);
+
+    wcex.style = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc = WndProc;
+    wcex.cbClsExtra = 0;
+    wcex.cbWndExtra = 0;
+    wcex.hInstance = hInstance;
+    wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SIMPLEPACKER));
+    wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW);
+    wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_SIMPLEPACKER);
+    wcex.lpszClassName = _szWindowClass;
+    wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+
+    return RegisterClassExW(&wcex);
 }
+BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+{
+    const DWORD width = 640;
+    const DWORD height = 480;
 
+    _hInst = hInstance; // 인스턴스 핸들을 전역 변수에 저장합니다.
+    _hWnd = CreateWindowW(_szWindowClass, _szTitle, WS_OVERLAPPEDWINDOW,
+        0, 0, width, height, nullptr, nullptr, hInstance, nullptr);
+
+    RECT rt;
+    rt.right = width;
+    rt.bottom = height;
+
+    AdjustWindowRectEx(&rt, GetWindowStyle(_hWnd), GetMenu(_hWnd) != NULL, GetWindowExStyle(_hWnd));
+
+    MoveWindow(_hWnd, 0, 0, rt.right, rt.bottom, false);
+
+    if (!_hWnd)
+    {
+        return FALSE;
+    }
+
+    ShowWindow(_hWnd, nCmdShow);
+    UpdateWindow(_hWnd);
+
+    return TRUE;
+}
+int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
+    _In_opt_ HINSTANCE hPrevInstance,
+    _In_ LPWSTR    lpCmdLine,
+    _In_ int       nCmdShow)
+{
+    UNREFERENCED_PARAMETER(hPrevInstance);
+    UNREFERENCED_PARAMETER(lpCmdLine);
+
+    // TODO: 여기에 코드를 입력합니다.
+
+    // 전역 문자열을 초기화합니다.
+    LoadStringW(hInstance, IDS_APP_TITLE, _szTitle, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDC_SIMPLEPACKER, _szWindowClass, MAX_LOADSTRING);
+    MyRegisterClass(hInstance);
+
+    // 애플리케이션 초기화를 수행합니다:
+    if (!InitInstance(hInstance, nCmdShow))
+    {
+        return FALSE;
+    }
+
+    addListBox(_hWnd, hInstance);
+    _hBtnAddFile = addButton(_hWnd, hInstance, (LPTSTR)L"추 가", 10, 10);
+    _hBtnDelFile = addButton(_hWnd, hInstance, (LPTSTR)L"제 거", 10, 50);
+    _hBtnPacking = addButton(_hWnd, hInstance, (LPTSTR)L"패킹", 10, 300);
+    _hBtnUnPackingAll = addButton(_hWnd, hInstance, (LPTSTR)L"전체 언패킹", 10, 340);
+    _hBtnUnPackingSelected = addButton(_hWnd, hInstance, (LPTSTR)L"선택 항목 언패킹", 10, 380);
+
+    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SIMPLEPACKER));
+
+    MSG msg;
+
+    // 기본 메시지 루프입니다:
+    while (GetMessage(&msg, nullptr, 0, 0))
+    {
+        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+    }
+
+    return (int)msg.wParam;
+}

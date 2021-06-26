@@ -11,6 +11,7 @@
 #include <windowsx.h>
 #include <CommCtrl.h>
 #include <shobjidl_core.h>
+#include <shlobj_core.h>
 // C 런타임 헤더 파일입니다.
 #include <stdio.h>
 #include <stdlib.h>
