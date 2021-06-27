@@ -11,7 +11,7 @@ public:
 		Node* parent;
 		Node* child;
 
-		inline Node* operator=(const Node* const node) {
+		inline Node* operator=(Node* const node) {
 			value = node->value;
 			parent = node->parent;
 			child = node->child;
@@ -19,7 +19,7 @@ public:
 			return this;
 		}
 
-		inline bool operator==(const Node& const node) {
+		inline bool operator==(Node& node) {
 			return value == node.value && parent == node.parent && child == node.child;
 		}
 
@@ -31,11 +31,11 @@ public:
 				node = nullptr;
 			}
 
-			iterator(const Node* const node) {
+			iterator(Node* const node) {
 				this->node = (Node*)node;
 			}
 
-			inline iterator* operator=(const Node* const node) {
+			inline iterator* operator=(Node* const node) {
 				this->node = (Node*)node;
 
 				return this;
@@ -55,11 +55,11 @@ public:
 				return this;
 			}
 
-			inline bool operator!=(const Node* const node) {
+			inline bool operator!=(Node* const node) {
 				return !(*(this->node) == *node);
 			}
 
-			inline bool operator==(const Node* const node) {
+			inline bool operator==(Node* const node) {
 				return *(this->node) == *node;
 			}
 
@@ -71,16 +71,16 @@ public:
 	CLinkedList();
 
 	void push_front(
-		const T value // 저장할 값
+		T value // 저장할 값
 	);
 	void push_back(
-		const T value // 저장할 값
+		T value // 저장할 값
 	);
 	void pop_front();
 	void pop_back();
 
 	void insert(
-		const T const value, // 값을 저장할 데이터
+		T const value, // 값을 저장할 데이터
 		Node* parent  // 이 노드의 자식으로 저장됩니다.
 	);
 
@@ -137,7 +137,7 @@ void CLinkedList<T>::insert(T value, CLinkedList<T>::Node* parent) {
 }
 
 template<typename T>
-void CLinkedList<T>::push_front(const T const value) {
+void CLinkedList<T>::push_front(T const value) {
 	Node* node = (CLinkedList::Node*)malloc(sizeof(CLinkedList::Node));
 
 	node->value = value;
@@ -150,8 +150,12 @@ void CLinkedList<T>::push_front(const T const value) {
 }
 
 template<typename T>
-void CLinkedList<T>::push_back(const T const value) {
+void CLinkedList<T>::push_back(T const value) {
 	Node* node = (CLinkedList::Node*)malloc(sizeof(CLinkedList::Node));
+
+	if (node == nullptr) {
+		return;
+	}
 
 	node->value = value;
 	node->parent = tail.parent;
