@@ -65,14 +65,18 @@ WCHAR* getFileNameFromDirectory(WCHAR* dir) {
         }
     }
 
-    DWORD len = dir + dirCnt - lastSlash - 1;
-    DWORD nameSize = sizeof(WCHAR) * (len + 1);
+    DWORD len = DWORD(dir + dirCnt - lastSlash - 1);
+    DWORD nameSize = (DWORD)sizeof(WCHAR) * (len + 1);
     WCHAR* fileName = (WCHAR*)malloc(nameSize);
+    if (fileName == nullptr) {
+        return nullptr;
+    }
     ZeroMemory(fileName, nameSize);
 
-    int lenCnt = 0;
+    WCHAR* fileNameChar = fileName;
     for (WCHAR* iter = lastSlash + 1; *iter != L'\0'; ++iter) {
-        fileName[lenCnt++] = *iter;
+        *fileNameChar = *iter;
+        fileNameChar += 1;
     }
 
     return fileName;
@@ -86,8 +90,12 @@ WCHAR* selectFolder() {
 
     LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
 
-    WCHAR* selectPath = (WCHAR*)malloc(sizeof(WCHAR) * MAX_PATH);
-    ZeroMemory(selectPath, sizeof(WCHAR) * MAX_PATH);
+    DWORD pathSize = sizeof(WCHAR) * MAX_PATH;
+    WCHAR* selectPath = (WCHAR*)malloc(pathSize);
+    if (selectPath == nullptr) {
+        return nullptr;
+    }
+    ZeroMemory(selectPath, pathSize);
 
     if (pidl != NULL)    {
 
@@ -104,15 +112,15 @@ WCHAR* selectFolder() {
 
 void init() {
 
-    _packer->~CSimplePacker();
-    new(_packer) CSimplePacker;
-
     for (CLinkedList<WCHAR*>::iterator path = _fileFullPath->begin(); path != _fileFullPath->end(); ++path) {
         WCHAR* temp = *path;
         if (wcscmp(temp, L" ") != 0) {
             free(temp);
         }
     }
+
+    _packer->~CSimplePacker();
+    new(_packer) CSimplePacker;
 
     _fileFullPath->~CLinkedList();
     new(_fileFullPath) CLinkedList<WCHAR*>();
@@ -149,8 +157,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     CoTaskMemFree(_packedFileName);
                 }
                 IFileOpenDialog* pFileOpen;
-                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-                CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void**)&pFileOpen);
+                HRESULT hResult;
+                hResult = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+                hResult = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void**)&pFileOpen);
                 pFileOpen->Show(NULL);
                 IShellItem* pItem;
                 if (SUCCEEDED(pFileOpen->GetResult(&pItem))) {
@@ -177,14 +186,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
             if (lParam == (LPARAM)_hBtnAddFile) {
                 IFileOpenDialog* pFileOpen;
-                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-                CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void**)&pFileOpen);
+                HRESULT hResult;
+                hResult = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+                hResult = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, (void**)&pFileOpen);
                 pFileOpen->Show(NULL);
                 IShellItem* pItem; 
                 if (SUCCEEDED(pFileOpen->GetResult(&pItem))) {
                     LPWSTR fullPath;
                     pItem->GetDisplayName(SIGDN_FILESYSPATH, &fullPath);
-                    int len = wcslen(fullPath);
+                    int len = (int)wcslen(fullPath);
                     WCHAR* temp = (WCHAR*)malloc(sizeof(WCHAR) * len);
                     memcpy(temp, fullPath, sizeof(WCHAR) * len);
                     _fileFullPath->push_back(temp);
@@ -222,13 +232,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 IFileSaveDialog* pFileSave;
                 LPWSTR fullPath;
-                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-                CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_ALL, IID_IFileSaveDialog, (void**)&pFileSave);
+                HRESULT hResult;
+                hResult = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+                hResult = CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_ALL, IID_IFileSaveDialog, (void**)&pFileSave);
                 pFileSave->Show(NULL);
                 IShellItem* pItem;
                 if (SUCCEEDED(pFileSave->GetResult(&pItem))) {
                     pItem->GetDisplayName(SIGDN_FILESYSPATH, &fullPath);
-                    int len = wcslen(fullPath);
+                    if (fullPath == nullptr) {
+                        pItem->Release();
+                        pFileSave->Release();
+                        CoUninitialize();
+                        return 0;
+                    }
+                    int len = (int)wcslen(fullPath);
                     pItem->Release();
                     pFileSave->Release();
                     CoUninitialize();
@@ -265,6 +282,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                         header->fileSize = size;
                         rewind(readFile);
                         BYTE* data = (BYTE*)malloc(sizeof(BYTE) * size);
+                        if (data == nullptr) {
+                            return 0;
+                        }
                         fread(data, sizeof(BYTE), size, readFile);
                         file->data = data;
                         fclose(readFile);
@@ -293,17 +313,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     CSimplePacker::stFileHeader* header = file->header;
 
                     FILE* saveFile;
-                    DWORD pathLen = wcslen(selectPath);
+                    DWORD pathLen = (DWORD)wcslen(selectPath);
                     DWORD fullPathLen = pathLen + header->nameLen + 1;
-                    
-                    WCHAR* fullPath = (WCHAR*)malloc(sizeof(WCHAR) * (fullPathLen + 1));
-                    fullPath[fullPathLen] = *(WCHAR*)L"\0";
+                    unsigned __int64 fullPathSize = sizeof(WCHAR) * ((unsigned __int64)fullPathLen + 1);
+                    WCHAR* fullPath = (WCHAR*)malloc(fullPathSize);
+                    if (fullPath == nullptr) {
+                        return 0;
+                    }
+                    ZeroMemory(fullPath, fullPathSize);
 
                     memcpy(fullPath, selectPath, sizeof(WCHAR)* pathLen);
                     memcpy(fullPath + pathLen, L"\\", 2);
                     memcpy(fullPath + pathLen + 1, header->name, header->nameLen * sizeof(WCHAR));
                     
                     _wfopen_s(&saveFile, fullPath, L"wb");
+                    if (saveFile == nullptr) {
+                        return 0;
+                    }
                     fwrite(file->data, header->fileSize, 1, saveFile);
                     fclose(saveFile);
                     
@@ -313,6 +339,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             else if (lParam == (LPARAM)_hBtnUnPackingSelected) {
                 int* idxs = (int*)malloc(sizeof(int) * _fileNum);
+                if (idxs == nullptr) {
+                    return 0;
+                }
                 __int64 selNum = SendMessageW(_hListBox, LB_GETSELITEMS, _fileNum, (LPARAM)idxs);
                 if (selNum == LB_ERR) {
                     // 아무것도 선택되지 않음
@@ -327,23 +356,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 }                
 
                 for (__int64 selCnt = 0; selCnt < selNum; selCnt++) {
-                    DWORD idx = idxs[selCnt];
+                    DWORD idx = *(idxs + selCnt);
                     _packer->readDataSingleFile(_packedFileName, idx); FILE* saveFile;
 
                     CSimplePacker::stFile* file = &_packer->_files[idx];
                     CSimplePacker::stFileHeader* header = file->header;
 
-                    DWORD pathLen = wcslen(selectPath);
+                    DWORD pathLen = (DWORD)wcslen(selectPath);
                     DWORD fullPathLen = pathLen + header->nameLen + 1;
-
-                    WCHAR* fullPath = (WCHAR*)malloc(sizeof(WCHAR) * (fullPathLen + 1));
-                    fullPath[fullPathLen] = *(WCHAR*)L"\0";
-
-                    memcpy(fullPath, selectPath, sizeof(WCHAR)* pathLen);
+                    unsigned __int64 fullPathSize = sizeof(WCHAR) * ((unsigned __int64)fullPathLen + 1);
+                    WCHAR* fullPath = (WCHAR*)malloc(fullPathSize);
+                    if (fullPath == nullptr) {
+                        return 0;
+                    }
+                    ZeroMemory(fullPath, fullPathSize);
+                    memcpy_s(fullPath, fullPathSize, selectPath, sizeof(WCHAR)* pathLen);
                     memcpy(fullPath + pathLen, L"\\", 2);
                     memcpy(fullPath + pathLen + 1, header->name, header->nameLen * sizeof(WCHAR));
 
                     _wfopen_s(&saveFile, fullPath, L"wb");
+                    if (saveFile == nullptr) {
+                        return 0;
+                    }
                     fwrite(file->data, header->fileSize, 1, saveFile);
                     fclose(saveFile);
                 }
@@ -365,9 +399,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_DROPFILES: 
         {
             constexpr DWORD fullPathSize = sizeof(WCHAR) * 255;
-            WCHAR* fullPath = (WCHAR*)malloc(fullPathSize);
-            DWORD dragFileNum = DragQueryFileW((HDROP)wParam, 0xFFFFFFFF, fullPath, 255);
+            WCHAR* fullPath;
+            DWORD dragFileNum = DragQueryFileW((HDROP)wParam, 0xFFFFFFFF, nullptr, 0);
             for (DWORD dragFileCnt = 0; dragFileCnt < dragFileNum; ++dragFileCnt) {
+                fullPath = (WCHAR*)malloc(fullPathSize);
+                if (fullPath == nullptr) {
+                    return 0;
+                }
                 ZeroMemory(fullPath, fullPathSize);
                 DragQueryFileW((HDROP)wParam, dragFileCnt, fullPath, 255);
                 WCHAR* fileName = getFileNameFromDirectory(fullPath);
