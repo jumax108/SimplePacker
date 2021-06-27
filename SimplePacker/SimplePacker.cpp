@@ -65,8 +65,9 @@ WCHAR* getFileNameFromDirectory(WCHAR* dir) {
     }
 
     DWORD len = dir + dirCnt - lastSlash - 1;
-    WCHAR* fileName = (WCHAR*)malloc(sizeof(WCHAR) * len + 1);
-    fileName[len] = L'\0';
+    DWORD nameSize = sizeof(WCHAR) * (len + 1);
+    WCHAR* fileName = (WCHAR*)malloc(nameSize);
+    ZeroMemory(fileName, nameSize);
 
     int lenCnt = 0;
     for (WCHAR* iter = lastSlash + 1; *iter != L'\0'; ++iter) {
@@ -142,6 +143,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             case IDM_SAVEFILE:
                 return 0;
             case IDM_LOAD:
+                init();
                 if (_packedFileName != nullptr) {
                     CoTaskMemFree(_packedFileName);
                 }
