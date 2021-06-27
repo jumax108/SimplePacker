@@ -94,25 +94,24 @@ bool CSimplePacker::readDataAll(WCHAR* packedFileName) {
 
 	if (_files != nullptr) {
 		this->~CSimplePacker();
+		_fileNum = 0;
+		_files = nullptr;
 	}
 
 	if (_fileNum == 0) {
 		readHeader(packedFileName);
 	}
 
-	unsigned __int64  fileBufSize = sizeof(stFile) * _fileNum;
-	_files = (stFile*)malloc(fileBufSize);
 	if (_files == nullptr) {
 		return false;
 	}
-	ZeroMemory(_files, fileBufSize);
 
 	FILE* packedFile;
 	_wfopen_s(&packedFile, packedFileName, L"rb");
 	if (packedFile == nullptr) {
 		return false;
 	}
-	_fseeki64(packedFile, _files[0].header->offset, SEEK_SET);
+	_fseeki64(packedFile, _files->header->offset, SEEK_SET);
 
 	for (DWORD fileCnt = 0; fileCnt < _fileNum; ++fileCnt) {
 
