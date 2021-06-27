@@ -20,15 +20,18 @@ public:
 
 public:
 
-	static CSimplePacker* instance() {
-		static CSimplePacker inst;
-		return &inst;
-	}
-
 	void packing(stFile* files, DWORD fileNum, WCHAR* outputFileName);
 	void unpackingAll(WCHAR* packedFileName);
 	void unpackingSingleFile(WCHAR* packedFileName, int index);
 	void readHeader(WCHAR* packedFileName);
+	inline bool haveFileData(int index) {
+
+		if (_files == nullptr) {
+			return false;
+		}
+
+		return _files[index].data != NULL;
+	}
 
 	inline DWORD fileNum(WCHAR* packedFileName) {
 
@@ -39,20 +42,23 @@ public:
 
 	}
 
-	stFileHeader* _headers;
-	stFile* _files;
-
-private:
-
 	CSimplePacker() {
 		_headers = nullptr;
 		_files = nullptr;
 		_fileNum = 0;
 	}
 	~CSimplePacker() {
+		for (DWORD fileCnt = 0; fileCnt < _fileNum; ++fileCnt) {
+			free(_headers[fileCnt].name);
+		}
 		free(_headers);
 		free(_files);
 	}
+
+	stFileHeader* _headers;
+	stFile* _files;
+
+private:
 
 	DWORD _fileNum;
 

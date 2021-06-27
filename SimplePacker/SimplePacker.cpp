@@ -24,7 +24,9 @@ LPWSTR _fileName = nullptr;
 
 int _fileNum = 0;
 
-CLinkedList<WCHAR*> _fileFullPath;
+CLinkedList<WCHAR*>* _fileFullPath;
+
+CSimplePacker* packer;
 
 void setListBoxHorizontalLen(HWND hWnd) {
 
@@ -103,6 +105,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     switch (message)
     {
     case WM_CREATE:
+        packer = new CSimplePacker();
+        _fileFullPath = new CLinkedList<WCHAR*>();
         break;
     case WM_COMMAND:
         {
@@ -111,8 +115,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             switch (wmId)
             {
             case IDM_NEWFILE:
+                packer->~CSimplePacker();
+                new(packer) CSimplePacker;
                 
                 _fileNum = 0;
+
+                _fileFullPath->~CLinkedList();
+                new(_fileFullPath) CLinkedList<WCHAR*>();
                 return 0;
             case IDM_SAVEFILE:
                 return 0;
@@ -127,9 +136,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 IShellItem* pItem;
                 if (SUCCEEDED(pFileOpen->GetResult(&pItem))) {
                     pItem->GetDisplayName(SIGDN_FILESYSPATH, &_fileName);
-                    CSimplePacker::instance()->readHeader(_fileName);
-                    for (DWORD fileCnt = 0; fileCnt < CSimplePacker::instance()->fileNum(_fileName); ++fileCnt) {
-                        SendMessageW(_hListBox, LB_ADDSTRING, NULL, (LPARAM)CSimplePacker::instance()->_headers[fileCnt].name);
+                    packer->readHeader(_fileName);
+                    for (DWORD fileCnt = 0; fileCnt < packer->fileNum(_fileName); ++fileCnt) {
+                        SendMessageW(_hListBox, LB_ADDSTRING, NULL, (LPARAM)packer->_headers[fileCnt].name);
                         _fileNum += 1;
                     }
                     pItem->Release();
@@ -156,7 +165,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     int len = wcslen(fullPath);
                     WCHAR* temp = (WCHAR*)malloc(sizeof(WCHAR) * len);
                     memcpy(temp, fullPath, sizeof(WCHAR) * len);
-                    _fileFullPath.push_back(temp);
+                    _fileFullPath->push_back(temp);
                     LPWSTR fileName = getFileNameFromDirectory(fullPath);
                     SendMessageW(_hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
                     CoTaskMemFree(fullPath);
@@ -179,20 +188,43 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 for (int fileCnt = 0; fileCnt < selNum; ++fileCnt) {
                     int idx = idxs[fileCnt];
-                    CLinkedList<WCHAR*>::iterator iter = _fileFullPath.begin();
+                    CLinkedList<WCHAR*>::iterator iter = _fileFullPath->begin();
                     for (int idxCnt = 0; idxCnt < idx; ++idxCnt, ++iter) {}
-                    _fileFullPath.erase(iter);
+                    _fileFullPath->erase(iter);
                     SendMessageW(_hListBox, LB_DELETESTRING, idx, NULL);
                     _fileNum -= 1;
                 }
                 free(idxs);
             }
             else if (lParam == (LPARAM)_hBtnPacking) {
-                                
+
+                IFileSaveDialog* pFileSave;
+                LPWSTR fullPath;
+                CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+                CoCreateInstance(CLSID_FileSaveDialog, NULL, CLSCTX_ALL, IID_IFileSaveDialog, (void**)&pFileSave);
+                pFileSave->Show(NULL);
+                IShellItem* pItem;
+                if (SUCCEEDED(pFileSave->GetResult(&pItem))) {
+                    pItem->GetDisplayName(SIGDN_FILESYSPATH, &fullPath);
+                    int len = wcslen(fullPath);
+                    pItem->Release();
+                    pFileSave->Release();
+                    CoUninitialize();
+                }
+                else {
+                    // 취소
+                    return 0;
+                }
+
                 CSimplePacker::stFile* files = (CSimplePacker::stFile*)malloc(sizeof(CSimplePacker::stFile) * _fileNum);
 
                 int fileCnt = 0;
-                for (CLinkedList<WCHAR*>::iterator filePathIter = _fileFullPath.begin(); filePathIter != _fileFullPath.end(); ++filePathIter, ++fileCnt){
+                for (CLinkedList<WCHAR*>::iterator filePathIter = _fileFullPath->begin(); filePathIter != _fileFullPath->end(); ++filePathIter, ++fileCnt){
+
+                    if (packer->haveFileData(fileCnt) == true) {
+                        continue;
+                    }
+
                     LPWSTR fileName = new WCHAR[255];
                     __int64 length = SendMessageW(_hListBox, LB_GETTEXT, (WPARAM)fileCnt, (LPARAM)fileName);
                     FILE* file = nullptr;
@@ -210,8 +242,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 }
 
-                CSimplePacker::instance()->packing(files, _fileNum, (WCHAR*)L"packed.sp");
+                packer->packing(files, _fileNum, fullPath);
                 MessageBoxW(hWnd, L"패킹 완료", L"Simple Packer", MB_OK);
+                CoTaskMemFree(fullPath);
             }
             else if (lParam == (LPARAM)_hBtnUnPackingAll) {
 
@@ -221,23 +254,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                     return 0;
                 }
 
-                CSimplePacker::instance()->unpackingAll(_fileName);
+                packer->unpackingAll(_fileName);
                 
-                for (DWORD fileCnt = 0; fileCnt < _fileNum; fileCnt++) {
+                for (int fileCnt = 0; fileCnt < _fileNum; fileCnt++) {
                     
                     FILE* saveFile;
                     DWORD pathLen = wcslen(selectPath);
-                    DWORD fullPathLen = pathLen + CSimplePacker::instance()->_headers[fileCnt].nameLen + 1;
+                    DWORD fullPathLen = pathLen + packer->_headers[fileCnt].nameLen + 1;
                     
                     WCHAR* fullPath = (WCHAR*)malloc(sizeof(WCHAR) * (fullPathLen + 1));
                     fullPath[fullPathLen] = *(WCHAR*)L"\0";
 
                     memcpy(fullPath, selectPath, sizeof(WCHAR)* pathLen);
                     memcpy(fullPath + pathLen, L"\\", 2);
-                    memcpy(fullPath + pathLen + 1, CSimplePacker::instance()->_headers[fileCnt].name, CSimplePacker::instance()->_headers[fileCnt].nameLen * sizeof(WCHAR));
+                    memcpy(fullPath + pathLen + 1, packer->_headers[fileCnt].name, packer->_headers[fileCnt].nameLen * sizeof(WCHAR));
                     
                     _wfopen_s(&saveFile, fullPath, L"wb");
-                    fwrite(CSimplePacker::instance()->_files[fileCnt].data, CSimplePacker::instance()->_headers->fileSize, 1, saveFile);
+                    fwrite(packer->_files[fileCnt].data, packer->_headers->fileSize, 1, saveFile);
                     fclose(saveFile);
                     
                 }
@@ -261,19 +294,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                 for (__int64 selCnt = 0; selCnt < selNum; selCnt++) {
                     DWORD idx = idxs[selCnt];
-                    CSimplePacker::instance()->unpackingSingleFile(_fileName, idx); FILE* saveFile;
+                    packer->unpackingSingleFile(_fileName, idx); FILE* saveFile;
                     DWORD pathLen = wcslen(selectPath);
-                    DWORD fullPathLen = pathLen + CSimplePacker::instance()->_headers[idx].nameLen + 1;
+                    DWORD fullPathLen = pathLen + packer->_headers[idx].nameLen + 1;
 
                     WCHAR* fullPath = (WCHAR*)malloc(sizeof(WCHAR) * (fullPathLen + 1));
                     fullPath[fullPathLen] = *(WCHAR*)L"\0";
 
                     memcpy(fullPath, selectPath, sizeof(WCHAR)* pathLen);
                     memcpy(fullPath + pathLen, L"\\", 2);
-                    memcpy(fullPath + pathLen + 1, CSimplePacker::instance()->_headers[idx].name, CSimplePacker::instance()->_headers[idx].nameLen * sizeof(WCHAR));
+                    memcpy(fullPath + pathLen + 1, packer->_headers[idx].name, packer->_headers[idx].nameLen * sizeof(WCHAR));
 
                     _wfopen_s(&saveFile, fullPath, L"wb");
-                    fwrite(CSimplePacker::instance()->_files[idx].data, CSimplePacker::instance()->_headers->fileSize, 1, saveFile);
+                    fwrite(packer->_files[idx].data, packer->_headers->fileSize, 1, saveFile);
                     fclose(saveFile);
                 }
                 MessageBoxW(hWnd, L"언패킹 완료 !", L"SimplePacker", MB_OK);
@@ -296,7 +329,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             WCHAR* fullPath = (WCHAR*)malloc(sizeof(WCHAR) * 255);
             DragQueryFileW((HDROP)wParam, 0, fullPath, 255);
             WCHAR* fileName = getFileNameFromDirectory(fullPath);
-            _fileFullPath.push_back(fullPath);
+            _fileFullPath->push_back(fullPath);
             DragFinish((HDROP)wParam);
             SendMessageW(_hListBox, LB_ADDSTRING, NULL, (LPARAM)fileName);
             _fileNum += 1;

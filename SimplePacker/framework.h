@@ -20,3 +20,4 @@
 #include <tchar.h>
 #include <fileapi.h>
 #include <shellapi.h>
+#include <new>
