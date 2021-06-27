@@ -100,6 +100,28 @@ WCHAR* selectFolder() {
     return selectPath;
 }
 
+void init() {
+
+    _packer->~CSimplePacker();
+    new(_packer) CSimplePacker;
+
+    for (CLinkedList<WCHAR*>::iterator path = _fileFullPath->begin(); path != _fileFullPath->end(); ++path) {
+        WCHAR* temp = *path;
+        if (wcscmp(temp, L" ") != 0) {
+            free(temp);
+        }
+    }
+
+    _fileFullPath->~CLinkedList();
+    new(_fileFullPath) CLinkedList<WCHAR*>();
+
+    for (int fileCnt = 0; fileCnt < _fileNum; ++fileCnt) {
+        SendMessageW(_hListBox, LB_DELETESTRING, 0, NULL);
+    }
+
+    _fileNum = 0;
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
@@ -115,13 +137,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             switch (wmId)
             {
             case IDM_NEWFILE:
-                _packer->~CSimplePacker();
-                new(_packer) CSimplePacker;
-                
-                _fileNum = 0;
-
-                _fileFullPath->~CLinkedList();
-                new(_fileFullPath) CLinkedList<WCHAR*>();
+                init();
                 return 0;
             case IDM_SAVEFILE:
                 return 0;
