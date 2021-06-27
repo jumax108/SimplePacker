@@ -5,22 +5,25 @@
 
 using namespace std;
 
-void CSimplePacker::packing(stFile* files, DWORD fileNum, WCHAR* outputFileName) {
-	
+bool CSimplePacker::packing(stFile* files, DWORD fileNum, WCHAR* outputFileName) {
+
 	FILE* resultFile;
 	_wfopen_s(&resultFile, outputFileName, L"wb");
+	if (resultFile == nullptr) {
+		return false;
+	}
 	fwrite(&fileNum, sizeof(DWORD), 1, resultFile);
 
 	DWORD* size = new DWORD[fileNum];
 	unsigned __int64 offset = sizeof(DWORD);
 	for (DWORD fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
-		stFileHeader* header = &files[fileCnt].header;
+		stFileHeader* header = files[fileCnt].header;
 		DWORD headerSize = sizeof(stFileHeader) - sizeof(WCHAR*) + sizeof(WCHAR) * header->nameLen;
 		offset += headerSize;
 	}
 
 	for (DWORD fileCnt = 0; fileCnt < fileNum; ++fileCnt) {
-		stFileHeader* header = &files[fileCnt].header; 
+		stFileHeader* header = files[fileCnt].header; 
 		header->offset = offset;
 		fwrite(&header->nameLen, sizeof(DWORD), 1, resultFile);
 		fwrite(header->name, sizeof(WCHAR), header->nameLen, resultFile);
@@ -36,85 +39,136 @@ void CSimplePacker::packing(stFile* files, DWORD fileNum, WCHAR* outputFileName)
 	}
 	
 	fclose(resultFile);
+
+	return true;
 }
 
-void CSimplePacker::readHeader(WCHAR* packedFileName) {
+bool CSimplePacker::readHeader(WCHAR* packedFileName) {
 
 	FILE* packedFile;
 	_wfopen_s(&packedFile, packedFileName, L"rb");
+	if (packedFile == nullptr) {
+		return false;
+	}
 
 	fread(&_fileNum, sizeof(DWORD), 1, packedFile);
 
-	_headers = (stFileHeader*)malloc(sizeof(stFileHeader) * _fileNum);
+	if (_files == nullptr) {
+
+		_files = (stFile*)malloc(sizeof(stFile) * _fileNum);
+		if (_files == nullptr) {
+			return false;
+		}
+		ZeroMemory(_files, sizeof(stFile) * _fileNum);
+
+	}
 
 	for (DWORD fileCnt = 0; fileCnt < _fileNum; ++fileCnt) {
-		stFileHeader* header = &_headers[fileCnt];
-		
+		stFile* file = &_files[fileCnt];
+		file->header = (stFileHeader*)malloc(sizeof(stFileHeader));
+		if (file->header == nullptr) {
+			return false;
+		}
+
+		stFileHeader* header = file->header;
 		fread(&header->nameLen, sizeof(DWORD), 1, packedFile);
-		header->name = (WCHAR*)malloc(sizeof(WCHAR) * (header->nameLen + 1));
+		unsigned __int64 nameSize = sizeof(WCHAR) * ((unsigned __int64)header->nameLen + 1);
+		header->name = (WCHAR*)malloc(nameSize);
+		if (header->name == nullptr) {
+			return false;
+		}
 		header->name[header->nameLen] = '\0';
-		fread(header->name, sizeof(WCHAR), header->nameLen, packedFile);
+		fread_s(header->name, nameSize, sizeof(WCHAR), header->nameLen, packedFile);
 		fread(&header->fileSize, sizeof(DWORD), 1, packedFile);
 		fread(&header->offset, sizeof(unsigned __int64), 1, packedFile);
 		
 	}
 	
 	fclose(packedFile);
+
+	return true;
 }
 
-void CSimplePacker::unpackingAll(WCHAR* packedFileName) {
+bool CSimplePacker::readDataAll(WCHAR* packedFileName) {
+
+
+	if (_files != nullptr) {
+		this->~CSimplePacker();
+	}
 
 	if (_fileNum == 0) {
 		readHeader(packedFileName);
 	}
 
-	if (_files != nullptr) {
-		free(_files);
+	unsigned __int64  fileBufSize = sizeof(stFile) * _fileNum;
+	_files = (stFile*)malloc(fileBufSize);
+	if (_files == nullptr) {
+		return false;
 	}
-	_files = (stFile*)malloc(sizeof(stFile) * _fileNum);
-	ZeroMemory(_files, sizeof(stFile) * _fileNum);
+	ZeroMemory(_files, fileBufSize);
 
 	FILE* packedFile;
 	_wfopen_s(&packedFile, packedFileName, L"rb");
-	fseek(packedFile, _headers[0].offset, SEEK_SET);
+	if (packedFile == nullptr) {
+		return false;
+	}
+	_fseeki64(packedFile, _files[0].header->offset, SEEK_SET);
 
 	for (DWORD fileCnt = 0; fileCnt < _fileNum; ++fileCnt) {
 
-		memcpy(&_files[fileCnt].header, &_headers[fileCnt], sizeof(stFileHeader));
-		_files[fileCnt].data = (BYTE*)malloc(_files[fileCnt].header.fileSize);
-		_files[fileCnt].data[_files[fileCnt].header.fileSize] = '\0';
-		fread(_files[fileCnt].data, _files[fileCnt].header.fileSize, 1, packedFile);
+		stFile* file = &_files[fileCnt];
+		stFileHeader* header = file->header;
+		unsigned __int64 dataBufSize = header->fileSize;
+		file->data = (BYTE*)malloc(dataBufSize + 1);
+		if (file->data == nullptr) {
+			return false;
+		}
+		file->data[dataBufSize] = '\0';
+		fread(file->data, dataBufSize, 1, packedFile);
 	}
 
 	fclose(packedFile);
+
+	return true;
 }
 
-void CSimplePacker::unpackingSingleFile(WCHAR* packedFileName, int index) {
+bool CSimplePacker::readDataSingleFile(WCHAR* packedFileName, int index) {
+
 	if (_fileNum == 0) {
 		readHeader(packedFileName);
 	}
 
 	if (_files == nullptr) {
 		_files = (stFile*)malloc(sizeof(stFile) * _fileNum);
+		if (_files == nullptr) {
+			return false;
+		}
 		ZeroMemory(_files, sizeof(stFile) * _fileNum);
 	}
 
 	stFile* file = &_files[index];
-	stFileHeader* header = &_headers[index];
+	stFileHeader* header = file->header;
 
 	if (file->data == nullptr) {
 
-		memcpy(&file->header, header, sizeof(stFileHeader));
-
-		file->data = (BYTE*)malloc(header->fileSize + 1);
-		file->data[header->fileSize] = '\0';
+		unsigned __int64 dataBufSize = header->fileSize;
+		file->data = (BYTE*)malloc(dataBufSize + 1);
+		if (file->data == nullptr) {
+			return false;
+		}
+		file->data[dataBufSize] = '\0';
 
 		FILE* packedFile;
 		_wfopen_s(&packedFile, packedFileName, L"rb");
+		if (packedFile == nullptr) {
+			return false;
+		}
 		_fseeki64(packedFile, header->offset, SEEK_SET);
 
-		fread(file->data, header->fileSize, 1, packedFile);
+		fread(file->data, dataBufSize, 1, packedFile);
 
 		fclose(packedFile);
 	}
+
+	return true;
 }
