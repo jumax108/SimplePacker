@@ -359,7 +359,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 free(fileName);
             }
             DragFinish((HDROP)wParam);
-            free(fullPath);
 
         }
         break;
