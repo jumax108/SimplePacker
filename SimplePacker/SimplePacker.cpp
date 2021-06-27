@@ -59,7 +59,8 @@ WCHAR* getFileNameFromDirectory(WCHAR* dir) {
     DWORD dirCnt = 0;
 
     for (; dir[dirCnt] != L'\0'; ++dirCnt) {
-        if ((char)dir[dirCnt] == '\\'){
+        if (((char*)(dir + dirCnt))[0] == ((char*)L"\\")[0] &&
+            ((char*)(dir + dirCnt))[1] == ((char*)L"\\")[1]){
             lastSlash = dir + dirCnt;
         }
     }
