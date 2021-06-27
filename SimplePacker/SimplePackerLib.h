@@ -13,17 +13,17 @@ public:
 	};
 
 	struct stFile {
-		stFileHeader header;
+		stFileHeader* header;
 		BYTE* data;
 	};
 #pragma pack()
 
 public:
 
-	void packing(stFile* files, DWORD fileNum, WCHAR* outputFileName);
-	void unpackingAll(WCHAR* packedFileName);
-	void unpackingSingleFile(WCHAR* packedFileName, int index);
-	void readHeader(WCHAR* packedFileName);
+	bool packing(stFile* files, DWORD fileNum, WCHAR* outputFileName);
+	bool readDataAll(WCHAR* packedFileName);
+	bool readDataSingleFile(WCHAR* packedFileName, int index);
+	bool readHeader(WCHAR* packedFileName);
 	inline bool haveFileData(int index) {
 
 		if (_files == nullptr) {
@@ -43,19 +43,17 @@ public:
 	}
 
 	CSimplePacker() {
-		_headers = nullptr;
 		_files = nullptr;
 		_fileNum = 0;
 	}
 	~CSimplePacker() {
 		for (DWORD fileCnt = 0; fileCnt < _fileNum; ++fileCnt) {
-			free(_headers[fileCnt].name);
+			free(_files[fileCnt].header->name);
 		}
-		free(_headers);
 		free(_files);
 	}
 
-	stFileHeader* _headers;
+	//stFileHeader* _headers;
 	stFile* _files;
 
 private:
