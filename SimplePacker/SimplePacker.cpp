@@ -230,6 +230,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             else if (lParam == (LPARAM)_hBtnPacking) {
 
+                if (_fileNum == 0) {
+                    MessageBoxW(hWnd, L"패킹할 파일이 없습니다.", L"SimplePacker", MB_OK);
+                    return 0;
+                }
+
                 IFileSaveDialog* pFileSave;
                 LPWSTR fullPath;
                 HRESULT hResult;
@@ -299,6 +304,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             else if (lParam == (LPARAM)_hBtnUnPackingAll) {
 
+                if (_fileNum == 0) {
+                    MessageBoxW(hWnd, L"언패킹할 파일이 없습니다.", L"SimplePacker", MB_OK);
+                    return 0;
+                }
+
                 WCHAR* selectPath = selectFolder();
                 if (selectPath == nullptr) {
                     // 폴더 선택 취소
@@ -338,6 +348,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 MessageBoxW(hWnd, L"언패킹 완료 !", L"SimplePacker", MB_OK);
             }
             else if (lParam == (LPARAM)_hBtnUnPackingSelected) {
+                if (_fileNum == 0) {
+                    MessageBoxW(hWnd, L"언패킹할 파일이 없습니다.", L"SimplePacker", MB_OK);
+                    return 0;
+                }
+
                 int* idxs = (int*)malloc(sizeof(int) * _fileNum);
                 if (idxs == nullptr) {
                     return 0;
@@ -345,6 +360,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 __int64 selNum = SendMessageW(_hListBox, LB_GETSELITEMS, _fileNum, (LPARAM)idxs);
                 if (selNum == LB_ERR) {
                     // 아무것도 선택되지 않음
+                    MessageBoxW(hWnd, L"아무 파일도 선택되지 않았습니다.", L"SimplePacker", MB_OK);
                     free(idxs);
                     return 0;
                 }
