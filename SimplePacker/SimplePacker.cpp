@@ -456,7 +456,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     const DWORD height = 480;
 
     _hInst = hInstance; // 인스턴스 핸들을 전역 변수에 저장합니다.
-    _hWnd = CreateWindowW(_szWindowClass, _szTitle, WS_OVERLAPPEDWINDOW,
+    _hWnd = CreateWindowW(_szWindowClass, _szTitle, WS_OVERLAPPED | WS_MINIMIZEBOX | WS_SYSMENU,
         0, 0, width, height, nullptr, nullptr, hInstance, nullptr);
 
     RECT rt;
